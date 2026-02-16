@@ -237,15 +237,23 @@ def check_available_gpus(gpu_id):
     Returns:
         n_gpus: Number of available GPUs
     """
-    from torch.cuda import device_count
-    n_gpus = device_count()
+    import torch
+
+    n_cuda_gpus = torch.cuda.device_count()
+    has_mps = (
+        hasattr(torch.backends, "mps")
+        and torch.backends.mps.is_built()
+        and torch.backends.mps.is_available()
+    )
+    # Treat Apple Metal (MPS) as a single available accelerator with id=0.
+    n_gpus = n_cuda_gpus if n_cuda_gpus > 0 else (1 if has_mps else 0)
 
     if (gpu_id is not None) and (gpu_id < 0):
         logger.error("The GPU ID must be 0 or a positive integer.")
         sys.exit(3)
     elif (gpu_id is not None) and n_gpus == 0:
         logger.warning("No GPU available, using CPU.")
-    elif (gpu_id is not None) and (gpu_id > n_gpus-1):
+    elif (gpu_id is not None) and (gpu_id > n_gpus - 1):
         logger.error(f"GPU ID '{str(gpu_id)}' is not available. The available GPU IDs are {str(list(range(n_gpus)))}.")
         sys.exit(3)
 

@@ -5,6 +5,7 @@ import shutil
 import numpy as np
 import imageio
 import os
+import torch
 
 import pytest
 
@@ -296,5 +297,12 @@ class TestCore(object):
         n_gpus = check_available_gpus(gpu_id)
 
         expected_n_gpus = device_count()
+        has_mps = (
+            hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_built()
+            and torch.backends.mps.is_available()
+        )
+        if expected_n_gpus == 0 and has_mps:
+            expected_n_gpus = 1
 
         assert n_gpus == expected_n_gpus

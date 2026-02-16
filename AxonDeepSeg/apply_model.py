@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 from loguru import logger
-from typing import List, Literal, NoReturn
+from typing import List, Literal, NoReturn, Optional
 
 # AxonDeepSeg imports
 from AxonDeepSeg.visualization.merge_masks import merge_masks
@@ -14,6 +14,49 @@ os.environ['nnUNet_raw'] = 'UNDEFINED'
 os.environ['nnUNet_results'] = 'UNDEFINED'
 os.environ['nnUNet_preprocessed'] = 'UNDEFINED'
 from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+
+def get_inference_device(gpu_id: Optional[int]) -> torch.device:
+    '''
+    Resolve the torch inference device from a requested GPU id.
+
+    Priority:
+    - CUDA (if available and a valid id is requested)
+    - Apple MPS (single logical id: 0)
+    - CPU fallback
+    '''
+    if gpu_id is None:
+        if torch.cuda.is_available():
+            return torch.device('cuda', 0)
+        has_mps = (
+            hasattr(torch.backends, 'mps')
+            and torch.backends.mps.is_built()
+            and torch.backends.mps.is_available()
+        )
+        if has_mps:
+            return torch.device('mps')
+        return torch.device('cpu')
+
+    if gpu_id < 0:
+        return torch.device('cpu')
+
+    if torch.cuda.is_available():
+        n_cuda = torch.cuda.device_count()
+        if gpu_id > n_cuda - 1:
+            raise ValueError(f"GPU ID '{gpu_id}' is not available. Valid CUDA GPU IDs: {list(range(n_cuda))}.")
+        return torch.device('cuda', gpu_id)
+
+    has_mps = (
+        hasattr(torch.backends, 'mps')
+        and torch.backends.mps.is_built()
+        and torch.backends.mps.is_available()
+    )
+    if has_mps:
+        if gpu_id > 0:
+            raise ValueError("GPU ID must be 0 when using Apple MPS.")
+        return torch.device('mps')
+
+    logger.warning('GPU requested, but no CUDA or Apple MPS backend is available. Falling back to CPU.')
+    return torch.device('cpu')
 
 def get_checkpoint_name(checkpoint_folder_path: Path) -> str:
     '''
@@ -116,7 +159,7 @@ def axon_segmentation(
                     path_inputs: List[Path],
                     path_model: Path,
                     model_type: Literal['light', 'ensemble']='light',
-                    gpu_id: int=-1,
+                    gpu_id: Optional[int]=None,
                     verbosity_level: int=0,
                     ) -> NoReturn:
     '''
@@ -131,8 +174,9 @@ def axon_segmentation(
         Path to the folder of the nnU-Net pretrained model. We assume it exists.
     model_type : Literal['light', 'ensemble'], optional
         Type of model, by default 'light'.
-    gpu_id : int, optional
-        GPU ID to use for cuda acceleration. -1 to use CPU, by default -1.
+    gpu_id : int or None, optional
+        GPU ID to use for acceleration. If None, auto-selects CUDA (id 0), then
+        Apple MPS, then CPU. Use -1 to force CPU.
     verbosity_level : int, optional
         Level of verbosity, by default 0.
     '''
@@ -140,9 +184,10 @@ def axon_segmentation(
     folds_avail = find_folds(path_model, model_type)
 
     # instantiate predictor
+    device = get_inference_device(gpu_id)
     predictor = nnUNetPredictor(
-        perform_everything_on_gpu=True if gpu_id >= 0 else False,
-        device=torch.device('cuda', gpu_id) if gpu_id >= 0 else torch.device('cpu'),
+        perform_everything_on_gpu=(device.type == 'cuda'),
+        device=device,
     )
     logger.info('Running inference on device: {}'.format(predictor.device))
 

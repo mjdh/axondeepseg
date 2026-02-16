@@ -14,7 +14,7 @@ from pathlib import Path
 import json
 import argparse
 from argparse import RawTextHelpFormatter
-from typing import Literal, List, NoReturn
+from typing import Literal, List, NoReturn, Optional
 from loguru import logger
 
 # AxonDeepSeg imports
@@ -123,7 +123,7 @@ def prepare_inputs(path_imgs: List[Path], file_format: str, n_channels: int) -> 
 def segment_images(
         path_images: List[Path],
         path_model: Path,
-        gpu_id: int=-1,
+        gpu_id: Optional[int]=None,
         verbosity_level: int=0,
     ) -> NoReturn:
     '''
@@ -135,8 +135,9 @@ def segment_images(
         List of path(s) to the image(s) to segment.
     path_model : pathlib.Path
         Path to the folder containing the model.
-    gpu_id : int
-        Number representing the GPU ID. Defaults to -1 for cpu.
+    gpu_id : int or None
+        Number representing the GPU ID. If None, auto-select acceleration.
+        Use -1 to force CPU.
     verbosity_level : int
         The higher, the more information is given about the segmentation process.
     '''
@@ -178,7 +179,7 @@ def segment_images(
 def segment_folder(
         path_folder: Path, 
         path_model: Path,
-        gpu_id: int=-1,
+        gpu_id: Optional[int]=None,
         verbosity_level: int=0
     ) -> NoReturn:
     '''
@@ -190,8 +191,9 @@ def segment_folder(
         Path to the folder containing the images to segment
     path_model : pathlib.Path
         Path to the folder containing the model.
-    gpu_id : int
-        Number representing the GPU ID. Defaults to -1 for cpu.
+    gpu_id : int or None
+        Number representing the GPU ID. If None, auto-select acceleration.
+        Use -1 to force CPU.
     verbosity_level : int
         The higher, the more information is given about the segmentation process.
     '''
@@ -256,8 +258,10 @@ def main(argv=None):
         dest="gpu_id",
         required=False,
         type=int,
-        help='Number representing the GPU ID for segmentation if available. Default: None (cpu).',
-        default=-1,
+        help='Number representing GPU ID for segmentation. '
+             + 'Default: auto-select backend (CUDA 0, then Apple MPS, then CPU). '
+             + 'Use -1 to force CPU.',
+        default=None,
     )
     ap._action_groups.reverse()
 
@@ -275,10 +279,10 @@ def main(argv=None):
     path_target_list = [Path(p) for p in args["imgpath"]]
     path_model = Path(args["model"]) if args["model"] else DEFAULT_MODEL_PATH
 
-    gpu_id = int(args["gpu_id"])
+    gpu_id = args["gpu_id"]
 
     # Check for available GPU IDs
-    if gpu_id >=0:
+    if (gpu_id is not None) and (gpu_id >= 0):
         ads.check_available_gpus(gpu_id)
 
     input_img_list = []

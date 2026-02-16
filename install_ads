@@ -163,7 +163,15 @@ function fetch_os_type() {
       export LANG=en_US.UTF-8
     fi
     OS="osx"
-    PROCESSOR="$(uname -m)"
+    process_arch="$(uname -m)"
+    # If Terminal runs under Rosetta, uname -m can be x86_64 on Apple Silicon.
+    # Detect Apple Silicon from the kernel string and prefer native arm64 install.
+    if [[ "$process_arch" == "x86_64" ]] && echo "$uname_output" | grep -q "RELEASE_ARM"; then
+      PROCESSOR="arm64"
+      print warning "Detected x86_64 translated shell on Apple Silicon. Using native arm64 installer."
+    else
+      PROCESSOR="$process_arch"
+    fi
     # make sure bashrc is loaded when starting a new Terminal
     force_bashrc_loading
   # Linux
@@ -182,27 +190,9 @@ function check_requirements() {
   if [[ ! ( $(command -v curl) || $(command -v wget) ) ]]; then
     die "ERROR: neither \"curl\" nor \"wget\" is installed. Please install either of them and restart ADS installation."
   fi
-  # check rosetta
-  if [[ "$OS" == "osx" ]]; then
-    if ! arch -x86_64 true >/dev/null 2>&1; then
-      print warning "WARNING: not running an x86_64 architecture."
-      while [[ ! "$ROSETTA_INSTALL" =~ ^([Yy](es)?|[Nn]o?)$ ]]; do
-        ROSETTA_INSTALL="no"
-        if [ -z "$NONINTERACTIVE" ]; then
-          print question "Do you want to install \"Rosetta 2\" now? [y]es/[n]o:"
-          read -r ROSETTA_INSTALL
-        fi
-      done
-      if [[ "$ROSETTA_INSTALL" =~ ^[Yy](es)? ]]; then
-        softwareupdate --install-rosetta
-        # check if we can now run x86_64 executables
-        if ! arch -x86_64 true >/dev/null 2>&1; then
-          die "ERROR: still cannot run x86_64 executables. Please contact ADS team for assistance."
-        fi
-      else
-        die "Please install \"Rosetta 2\" by running \"softwareupdate --install-rosetta\" and restart ADS installation."
-      fi
-    fi
+  # Apple Silicon installs are fully native arm64 and do not require Rosetta.
+  if [[ "$OS" == "osx" ]] && [[ "${PROCESSOR:-}" == "arm64" ]]; then
+    print info "Apple Silicon detected (arm64). Proceeding with native installation."
   fi
   # check gcc
   if ! gcc --version > /dev/null 2>&1; then
@@ -644,7 +634,7 @@ print info "Installing Python dependencies..."
 # We use 'SYSTEM_VERSION_COMPAT=0' to tell pip to report macOS 11 instead of macOS 10.16
 # This is necessary in order to install 'macosx_11_0' wheels. See also:
 # https://github.com/spinalcordtoolbox/spinalcordtoolbox/issues/4352
-SYSTEM_VERSION_COMPAT=0 "$CONDA_DIR"/envs/venv_ads/bin/pip install -e . --ignore-installed certifi && print info "Installing axondeepseg..." &&  "$CONDA_DIR"/envs/venv_ads/bin/pip install -e . || die "Failed running pip install: $?"
+SYSTEM_VERSION_COMPAT=0 "$CONDA_DIR"/envs/venv_ads/bin/pip install -e . --ignore-installed certifi || die "Failed running pip install: $?"
 print info "All requirements installed!"
 
 ## Create launchers for Python scripts

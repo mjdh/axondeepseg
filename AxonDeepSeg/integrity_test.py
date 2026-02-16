@@ -9,7 +9,6 @@ import numpy as np
 import tempfile
 import shutil
 import sys
-import pytest
 from loguru import logger
 
 import argparse
@@ -78,6 +77,7 @@ def main():
     args = parser.parse_args()
 
     if args.full:
+        import pytest
         # Run the full test suite
         sys.exit(pytest.main([Path(__file__).resolve().parent.parent / "test"]))
 

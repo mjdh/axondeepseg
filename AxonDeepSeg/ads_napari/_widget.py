@@ -68,9 +68,9 @@ class ADSsettings:
         # Declare the settings used
         self.axon_shape = "circle"
         self._axon_shape_selection_index = 0
-        self.gpu_id = -1
         self.n_gpus = ads_utils.check_available_gpus(None)
-        self.max_gpu_id = self.n_gpus - 1 if self.n_gpus > 0 else 0
+        self.gpu_id = 0 if self.n_gpus > 0 else -1
+        self.max_gpu_id = self.n_gpus - 1
         self.setup_settings_menu()
 
     def setup_settings_menu(self):
@@ -103,8 +103,9 @@ class ADSsettings:
         self.ui.axon_shape_comboBox.setCurrentIndex(
             self._axon_shape_selection_index
         )
-        self.ui.gpu_id_spinBox.setValue(self.gpu_id)
+        self.ui.gpu_id_spinBox.setMinimum(-1)
         self.ui.gpu_id_spinBox.setMaximum(self.max_gpu_id)
+        self.ui.gpu_id_spinBox.setValue(self.gpu_id)
         self.Settings_menu_ui.show()
 
     def _on_done_button_click(self):

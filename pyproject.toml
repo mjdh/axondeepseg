@@ -38,22 +38,26 @@ dependencies =[
     "requests",
     "pillow!=9.0.0",
     "imageio>=2.28.0",
-    "pytest",
-    "pytest-cov",
-    "prettytable",
-    "jupyter",
     "openpyxl",
     "qtconsole<5.4.2",
-    "napari[all]",
+    "napari",
     "acvl_utils!=0.2.1",
     "nnunetv2==2.2.1",
     "loguru",
     "torch<2.4.0",
     "pydicom<3",
-    "pytest-qt",
     "magicgui",
     "qtpy",
     "jinja2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "jupyter",
+    "prettytable",
 ]
 
 keywords = ["axon", "myelin", "segmentation", "microscopy"]
