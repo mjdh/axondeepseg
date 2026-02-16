@@ -7,6 +7,7 @@ import sys
 import argparse
 import yaml
 import textwrap
+from typing import Literal, Optional
 
 # exit codes
 SUCCESS_EXIT_CODE = 0
@@ -15,30 +16,63 @@ DOWNLOAD_ERROR_CODE = 2
 
 MODEL_CARDS_PATH = Path(__file__).parent / 'model_cards.yaml'
 
-def download_model(model_name='generalist', destination=None, overwrite=True):
+def _select_model_weights(
+        model_info: dict,
+        model_name: str,
+        model_type: Optional[Literal['light', 'ensemble']],
+    ) -> tuple[str, str]:
+    """
+    Select the model variant to download.
+
+    If model_type is None, default to light if available, otherwise ensemble.
+    If model_type is specified, require that exact variant.
+    """
+    single_fold_url = model_info['weights']['single_fold']
+    ensemble_url = model_info['weights']['ensemble']
+
+    if model_type is None:
+        # default to single_fold model if available (lighter and faster)
+        if single_fold_url is not None:
+            return 'light', single_fold_url
+        if ensemble_url is not None:
+            return 'ensemble', ensemble_url
+    elif model_type == 'light':
+        if single_fold_url is not None:
+            return 'light', single_fold_url
+        logger.error(f'Light model is not available for "{model_name}".')
+        sys.exit(MODEL_NOT_FOUND_CODE)
+    elif model_type == 'ensemble':
+        if ensemble_url is not None:
+            return 'ensemble', ensemble_url
+        logger.error(f'Ensemble model is not available for "{model_name}".')
+        sys.exit(MODEL_NOT_FOUND_CODE)
+
+    logger.error(f'No downloadable weights are available for "{model_name}".')
+    sys.exit(MODEL_NOT_FOUND_CODE)
+
+def download_model(model_name='generalist', destination=None, overwrite=True, model_type=None):
     '''
     Download a model for AxonDeepSeg.
     Parameters
     ----------
     model_name : str, optional
         Name of the model, by default 'generalist'. 
-    model_type :  Literal['light', 'ensemble'], optional
-        Type of model, by default 'light'. 
     destination : str, optional
         Directory to download the model to. Default: None.
+    model_type : Literal['light', 'ensemble'] | None, optional
+        If provided, forces the selected variant. If omitted, defaults to
+        'light' when available, otherwise 'ensemble'.
     '''
     models = get_model_cards(Path(__file__).parent / 'model_cards.yaml')
     if model_name not in models.keys():
         logger.error('Model not found.')
         sys.exit(MODEL_NOT_FOUND_CODE)
 
-    # default to single_fold model if available (lighter and faster)
-    if models[model_name]['weights']['single_fold'] is not None:
-        model_suffix = 'light'
-        url_model_destination = models[model_name]['weights']['single_fold']
-    elif models[model_name]['weights']['ensemble'] is not None:
-        model_suffix = 'ensemble'
-        url_model_destination = models[model_name]['weights']['ensemble']
+    model_suffix, url_model_destination = _select_model_weights(
+        model_info=models[model_name],
+        model_name=model_name,
+        model_type=model_type,
+    )
 
     full_model_name = f'{models[model_name]["full_name"]}_{model_suffix}'
     if destination is None:
@@ -130,6 +164,13 @@ def main(argv=None):
         help="Directory to download the model to. Default: AxonDeepSeg/models",
         default = None,
     )
+    ap.add_argument(
+        "-t", "--model-type",
+        required=False,
+        choices=["light", "ensemble"],
+        default=None,
+        help="Model variant to download. Default: light if available, otherwise ensemble.",
+    )
     args = vars(ap.parse_args(argv))
 
     model_cards = get_model_cards()
@@ -138,7 +179,12 @@ def main(argv=None):
         print_available_models(model_cards)
         sys.exit(SUCCESS_EXIT_CODE)
     else:
-        download_model(args["model_name"], args["dir"], overwrite=True)
+        download_model(
+            model_name=args["model_name"],
+            destination=args["dir"],
+            overwrite=True,
+            model_type=args["model_type"],
+        )
 
 if __name__ == "__main__":
     with logger.catch():

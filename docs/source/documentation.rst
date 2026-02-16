@@ -275,6 +275,12 @@ Then, use the following to download a specific model::
 
     download_model -m <model name>
 
+By default, ``download_model`` prefers the *light* variant when available, and falls back to *ensemble* otherwise.
+To force a specific variant, use the ``-t/--model-type`` option::
+
+    download_model -m <model name> -t light
+    download_model -m <model name> -t ensemble
+
 Using AxonDeepSeg
 =================
 
@@ -308,7 +314,16 @@ The script to launch is called **axondeepseg**. It takes several arguments:
 
                         **1**: Developer mode. Shows more information on the terminal, useful for debugging.. 
 
---gpu-id GPU_ID     Number representing the GPU ID for segmentation if available. Default: None.
+--gpu-id GPU_ID     Number representing the GPU ID for segmentation.
+                    Default: auto-select backend (CUDA ID 0, then Apple MPS, then CPU).
+                    Use -1 to force CPU.
+
+.. NOTE :: On Apple Silicon macOS, if segmentation still runs on CPU, check whether your PyTorch build can use MPS by running:
+   ::
+
+        python -c "import torch; print(torch.backends.mps.is_built(), torch.backends.mps.is_available())"
+
+   If ``is_available()`` is ``False``, the issue is usually the Python/PyTorch environment, not AxonDeepSeg CLI settings.
 
 .. NOTE :: You can get the detailed description of all the arguments of the **axondeepseg** command at any time by using the **-h** argument:
    ::
